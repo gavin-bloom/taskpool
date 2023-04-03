@@ -12,6 +12,7 @@
 
 class Task {
 public:
+    // Hungarian notation (m_ member variables)
     Task(std::function<void()> function, std::vector<std::vector<Task*>> dependencies)
         : m_function(function), m_dependencies(dependencies), m_completed(false) {}
 
@@ -35,12 +36,13 @@ public:
         std::unique_lock<std::mutex> lock(m_mutex);
 
         m_ready_tasks.push_back(task);
-
+	
+	// Loop over dependencies and add to graph structure for the task
         for (auto set : task->GetDependencies()) {
             m_dependencies[task].push_back(set);
         }
 
-        m_cv.notify_all();
+        m_cv.notify_all(); //Notify waiting threads of new task
     }
 
     Task* GetNextTask() {
@@ -49,6 +51,7 @@ public:
 		
         std::unique_lock<std::mutex> lock(m_mutex);
 
+	// Wait for a signal and check for task availability or all tasks completed
         m_cv.wait(lock, [this](){
             return !m_ready_tasks.empty() || m_completed_tasks.size() == m_dependencies.size();
         });
@@ -57,13 +60,15 @@ public:
             return nullptr;
         }
 
-		int RanIndex = rand() % m_ready_tasks.size();
+	// Pop off random task
+	int RanIndex = rand() % m_ready_tasks.size();
         Task* task = m_ready_tasks[RanIndex];
         m_ready_tasks.erase(m_ready_tasks.begin() + RanIndex);
 
         if (!task->IsCompleted()) {
             bool can_execute = false;
-
+	
+ 	    // Loop over dependency options and then individual dependencies to check if task can be done
             for (auto set : task->GetDependencies()) {
                 bool all_completed = true;
 
@@ -79,18 +84,20 @@ public:
                     break;
                 }
             }
-
+	    
+	    // If task not ready to be run put back on stack
             if (!can_execute) {
                 m_ready_tasks.push_back(task);
                 return nullptr;
             }
 			
-			//run the task and set completed
-			task->GetFunction()();
+	    // Run the task and set completed
+	    task->GetFunction()();
             task->SetCompleted();
             m_completed_tasks.push_back(task);
         }
 
+	// For all the dependency sets, remove the current task from the sets
         for (auto pair : m_dependencies) {
             auto dependencies = pair.second;
 
@@ -119,9 +126,11 @@ public:
     ThreadPool(int num_threads) : m_num_threads(num_threads), m_stop(false) {}
 
     ~ThreadPool() {
+	// Set stop flag and notify all waiting threads
         m_stop = true;
         m_cv.notify_all();
 
+	// Wait for all threads to complete
         for (auto& thread : m_threads) {
             if (thread.joinable()) {
                 thread.join();
@@ -129,6 +138,7 @@ public:
         }
     }
 
+    // Create threads and start running the ThreadFunction
     void Start() {
         for (int i = 0; i < m_num_threads; ++i) {
             m_threads.emplace_back(std::thread(&ThreadPool::ThreadFunction, this));

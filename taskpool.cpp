@@ -47,7 +47,7 @@ public:
 
     Task* GetNextTask() {
 		
-		std::srand ( time(NULL) );
+	std::srand ( time(NULL) );
 		
         std::unique_lock<std::mutex> lock(m_mutex);
 
